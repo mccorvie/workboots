@@ -1,0 +1,34 @@
+# Tau Ceti Lean Finder service (systemd --user unit).
+# Installed by install-service.sh into ~/.config/systemd/user/.  Mirrors tauceti-loogle.service,
+# but serves its unix socket directly (no systemd-socket-proxyd): the socket lands at
+# %t/tauceti-finder/<pin>/finder.sock (one per pin), mode 0666, dirs 0755.
+# Pins/device come from ~/.config/tauceti-finder/finder.env (TAUCETI_FINDER_PINS, TAUCETI_FINDER_DEVICE).
+
+[Unit]
+Description=Tau Ceti Lean Finder semantic search service
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/lean/workboots/local-finder
+EnvironmentFile=-%h/.config/tauceti-finder/finder.env
+Environment=HF_HUB_OFFLINE=1
+Environment=TOKENIZERS_PARALLELISM=false
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+RuntimeDirectory=tauceti-finder
+RuntimeDirectoryMode=0755
+ExecStart=%h/lean/workboots/local-finder/.venv/bin/python %h/lean/workboots/local-finder/server.py \
+    --socket-root %t/tauceti-finder
+
+Restart=on-failure
+RestartSec=5
+# Loading 16 GB of weights plus one 5-6 GB index per pin takes minutes (longer on CPU).
+TimeoutStartSec=30min
+TimeoutStopSec=30s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=default.target

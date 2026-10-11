@@ -1,0 +1,214 @@
+{
+  "tool": "explore",
+  "pin": "b3-11bc13335fb9",
+  "tauceti_sha": "11bc13335fb906290a0bcbe57747f20cd21dbf2c",
+  "mathlib_rev": "5e0c4e5239cb0a2d86d68a884bf52cfd963fce22",
+  "lean_toolchain": "leanprover/lean4:v4.35.0-rc3",
+  "decls_sha256": "ea0ccb8374a42f9e5282d24d6f396cb507b21883f389aea6a5e8bf4d8df9ed2d",
+  "built_at": "2026-10-09T09:04:54Z",
+  "route": "adapter (decls.jsonl -> LeanExplore SQLite schema; parse stage bypassed)",
+  "lean_explore": {
+    "version": "1.3.0",
+    "source": "PyPI"
+  },
+  "python": "3.14.4",
+  "source": {
+    "tauceti_sha": "11bc13335fb906290a0bcbe57747f20cd21dbf2c",
+    "mathlib_rev": "5e0c4e5239cb0a2d86d68a884bf52cfd963fce22",
+    "lean_toolchain": "leanprover/lean4:v4.35.0-rc3",
+    "decls_path": "/home/firstone/.local/share/tauceti-index/b3-11bc13335fb9/decls.jsonl",
+    "decls_sha256": "ea0ccb8374a42f9e5282d24d6f396cb507b21883f389aea6a5e8bf4d8df9ed2d",
+    "limit": null,
+    "s0_manifest": {
+      "batch": "b3",
+      "pin": "b3-11bc13335fb9",
+      "tauceti_sha": "11bc13335fb906290a0bcbe57747f20cd21dbf2c",
+      "mathlib_rev": "5e0c4e5239cb0a2d86d68a884bf52cfd963fce22",
+      "lean_toolchain": "leanprover/lean4:v4.35.0-rc3",
+      "docgen4_rev": "4cac5a75c52048204e6d015554fbc10ce3f269a2",
+      "docgen4_url": "https://github.com/kim-em/doc-gen4",
+      "route": "doc-gen4 docInfo facet (api-docs.db)",
+      "api_docs_db_sha256": "f224b1a5aa51fb576e49dd93b7b1020b6db5d1d883f0b5ca4a7801bb3579f4a6",
+      "extractor": "doc-gen4 docInfo facet -> api-docs.db -> extract.py",
+      "extractor_script": "extract.py",
+      "extractor_sha256": "d23f20459e766d42fb27ee774b2f145e0dd5d320e32480e7ad06d7b636694384",
+      "built_at": "2026-10-09T01:01:42Z",
+      "decls_file": "decls.jsonl",
+      "decls_sha256": "ea0ccb8374a42f9e5282d24d6f396cb507b21883f389aea6a5e8bf4d8df9ed2d",
+      "decls_size_bytes": 429998245,
+      "counts": {
+        "tauceti": 87221,
+        "mathlib": 324054,
+        "other": 99724,
+        "total": 510999,
+        "by_package": {
+          "Aesop": 2493,
+          "Batteries": 3627,
+          "ImportGraph": 28,
+          "Init": 34523,
+          "Lake": 3667,
+          "Lean": 25684,
+          "LeanSearchClient": 93,
+          "Mathlib": 324054,
+          "Plausible": 248,
+          "ProofWidgets": 251,
+          "Qq": 208,
+          "Std": 28902,
+          "TauCeti": 87221
+        },
+        "name_info_rows": 512030,
+        "undecodable_blobs": 0
+      },
+      "modules": {
+        "total": 19236,
+        "by_package": {
+          "Aesop": 132,
+          "Batteries": 193,
+          "ImportGraph": 10,
+          "Init": 653,
+          "Lake": 135,
+          "Lean": 1227,
+          "LeanSearchClient": 4,
+          "Mathlib": 8564,
+          "Plausible": 13,
+          "ProofWidgets": 13,
+          "Qq": 14,
+          "Std": 494,
+          "TauCeti": 7783,
+          "TauCetiDocs": 1
+        }
+      },
+      "includes": {
+        "tauceti": true,
+        "mathlib": true,
+        "lean_core": true,
+        "lake": true,
+        "batteries": true
+      },
+      "fields": [
+        "name",
+        "kind",
+        "module",
+        "file",
+        "line",
+        "signature",
+        "docstring",
+        "is_mathlib",
+        "hash",
+        "type_full"
+      ],
+      "hash": "sha256(name + '\\n' + signature + '\\n' + docstring), utf-8, hex",
+      "kinds": [
+        "axiom",
+        "class",
+        "class inductive",
+        "ctor",
+        "def",
+        "inductive",
+        "instance",
+        "opaque",
+        "structure",
+        "theorem"
+      ],
+      "type_full": {
+        "with": 510948,
+        "without": 51,
+        "by_group_with_without": {
+          "other": [
+            99724,
+            0
+          ],
+          "Mathlib": [
+            324003,
+            51
+          ],
+          "TauCeti": [
+            87221,
+            0
+          ]
+        },
+        "dump_rows": 588900,
+        "width": 120,
+        "method": "ppExpr of constant type via dump_typefull.lean (copied from local-finder/scripts)",
+        "merge_sha256": "97b5bd750f03049d2f85e1cc3b869fc5373a5f6ba8a9121db354896b193552bb",
+        "dump_sha256": "f89ce8b188b7f88650828749cb6a2d93ba1245d46f001a336f9707ecbd7e92d3",
+        "dump_seconds": null
+      }
+    }
+  },
+  "models": {
+    "embedding": {
+      "id": "Qwen/Qwen3-Embedding-0.6B",
+      "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+      "dim": 1024,
+      "max_seq_length": 512
+    },
+    "reranker": {
+      "id": "Qwen/Qwen3-Reranker-0.6B",
+      "revision": "e61197ed45024b0ed8a2d74b80b4d909f1255473",
+      "max_length": 256,
+      "runs": "local (CPU/GPU in the service process); deterministic for a fixed index"
+    },
+    "describers": [
+      "anthropic/claude-haiku-5.5"
+    ],
+    "describe_prompt_sha256": "2494ac1772c68419f3d37f1aad2ac99f420f05b6023e2ca9a08b5ba28367fd62"
+  },
+  "search_defaults": {
+    "rerank_top": 25,
+    "faiss_k": 1000,
+    "bm25_k": 1000
+  },
+  "faiss": {
+    "type": "IndexIVFFlat",
+    "nlist": 714,
+    "nprobe_at_query": 64
+  },
+  "counts": {
+    "declarations": 510999,
+    "tauceti": 186945,
+    "mathlib": 324054,
+    "described": 510862,
+    "embedded": 510862,
+    "described_by_source": {
+      "llm:anthropic/claude-haiku-5.5": 133707,
+      "reuse:20260714_172516:name": 377155
+    },
+    "embedded_by_source": {
+      "local:Qwen/Qwen3-Embedding-0.6B@97b0c614be4d:description": 133707,
+      "reuse:20260714_172516": 377155
+    },
+    "by_kind": {
+      "axiom": 84,
+      "class": 2486,
+      "class inductive": 8,
+      "ctor": 9994,
+      "def": 90895,
+      "inductive": 996,
+      "instance": 42058,
+      "opaque": 2193,
+      "structure": 3985,
+      "theorem": 358300
+    },
+    "null_description": 137,
+    "null_embedding": 137
+  },
+  "sha256": {
+    "lean_explore.db": "dd5779cb6185115415913d371c5108fa82616cc36d8b8f7814dca9fbe772752a",
+    "informalization_faiss.index": "3b6f2e8c2aa7bc391a3d60ba654dbddfcd63faee84914688c84ee6d96215b7d9",
+    "informalization_faiss_ids_map.json": "87305678d23b0f696459b8fb16601121a35bfbd95453edda9eac2bce016f5907",
+    "bm25_ids_map.json": "638be398f3e33155b045b06f4c004c8650f257784872aeb89518bcd5c7c0d2a9",
+    "bm25_name_raw/data.csc.index.npy": "2968d4e5c7d78778f7151e4b7e312ce03cd4ba94a80f91b9432fbae15dd09ab6",
+    "bm25_name_raw/indices.csc.index.npy": "4998417e47439031ab3e3ee8b1fc543414f14901638493b8669c6aa3f9bd5eea",
+    "bm25_name_raw/indptr.csc.index.npy": "12f8f7e994524eb00729572675dc0e4ce8e1aa8692c8d8e82131430f5bb86ebe",
+    "bm25_name_raw/nonoccurrence_array.index.npy": "310ec458eec49398bc8cecab6fb618977d71ca95979b64663c9df6ac6ee1f2be",
+    "bm25_name_raw/params.index.json": "e0e933ac16ad4323356f892ad253e85916fd5a32267938a6860211aeccb8800f",
+    "bm25_name_raw/vocab.index.json": "8ba1ccdca112aaee879b89b31cd0a8b5671b3e3810cf7ea999f1cedc5fd68ca2",
+    "bm25_name_spaced/data.csc.index.npy": "55193b15390f566448f69cd1203155e515370d5161cd601f274aa4e379c22dcb",
+    "bm25_name_spaced/indices.csc.index.npy": "7c061f78a86252c33e02880773ae887fa43ef820f7632f43d0dc9ddc96c8b558",
+    "bm25_name_spaced/indptr.csc.index.npy": "2cfa9552d869e75222b087b519a2b5802c795218b068ff7b257c58f10af3c712",
+    "bm25_name_spaced/nonoccurrence_array.index.npy": "d1ed45683c6cc969fcc0a7af39ee32a650533b243ef4a4b5c9d599523906abdc",
+    "bm25_name_spaced/params.index.json": "e0e933ac16ad4323356f892ad253e85916fd5a32267938a6860211aeccb8800f",
+    "bm25_name_spaced/vocab.index.json": "c0050fcbdbeab2bd28a10cfaea8bfab82cc5af535579c46d5d15e83695f5d1c6"
+  }
+}

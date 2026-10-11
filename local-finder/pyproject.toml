@@ -1,0 +1,24 @@
+[project]
+name = "tauceti-finder"
+version = "0.1.0"
+description = "Lean Finder semantic-search service for TauCeti benchmark arms (index builder + unix-socket server)"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Apache-2.0" }
+dependencies = [
+    # Pinned to match delta-lab-ai/lean-finder requirements.txt at commit 69b7646.
+    "torch==2.9.0",
+    "transformers==4.57.5",
+    "faiss-cpu==1.13.2",
+    "numpy>=2.0,<3",
+    "huggingface_hub>=0.34,<1.0",
+    "tqdm>=4.66",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "pydantic>=2.0,<3",
+    "safetensors>=0.4",
+]
+
+[tool.uv]
+# One resolution for the whole project; the lock file pins everything else.
+package = false

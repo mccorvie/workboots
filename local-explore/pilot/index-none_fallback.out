@@ -1,0 +1,19 @@
+2026-10-08 21:13:40,287 INFO build_explore: == stage index (pin b3-11bc13335fb9, out /home/firstone/lean/workboots/local-explore/pilot/explore/none_fallback)
+2026-10-08 21:13:40,346 INFO faiss.loader: Loading faiss with AVX2 support.
+2026-10-08 21:13:40,347 INFO faiss.loader: Could not load library with AVX2 support due to:
+ModuleNotFoundError("No module named 'faiss.swigfaiss_avx2'")
+2026-10-08 21:13:40,347 INFO faiss.loader: Loading faiss.
+2026-10-08 21:13:40,375 INFO faiss.loader: Successfully loaded faiss.
+2026-10-08 21:13:40,385 INFO build_explore: faiss: IndexFlatIP over 200 vectors (dim 1024)
+2026-10-08 21:13:40,692 INFO lean_explore.extract.index: Saving BM25 indices to /home/firstone/lean/workboots/local-explore/pilot/explore/none_fallback
+2026-10-08 21:13:40,695 INFO lean_explore.extract.index: Loaded 200 declarations for BM25 indexing
+2026-10-08 21:13:40,695 INFO lean_explore.extract.index: Building BM25 indices over declaration names...
+2026-10-08 21:13:40,697 DEBUG bm25s: Building index from tokens
+BM25S Create Vocab:   0%|          | 0/200 [00:00<?, ?it/s]                                                           BM25S Convert tokens to indices:   0%|          | 0/200 [00:00<?, ?it/s]                                                                        BM25S Count Tokens:   0%|          | 0/200 [00:00<?, ?it/s]                                                           BM25S Compute Scores:   0%|          | 0/200 [00:00<?, ?it/s]                                                             2026-10-08 21:13:40,707 INFO lean_explore.extract.index: Built BM25 spaced index
+2026-10-08 21:13:40,707 DEBUG bm25s: Building index from tokens
+BM25S Create Vocab:   0%|          | 0/200 [00:00<?, ?it/s]                                                           BM25S Convert tokens to indices:   0%|          | 0/200 [00:00<?, ?it/s]                                                                        BM25S Count Tokens:   0%|          | 0/200 [00:00<?, ?it/s]                                                           BM25S Compute Scores:   0%|          | 0/200 [00:00<?, ?it/s]                                                             2026-10-08 21:13:40,712 INFO lean_explore.extract.index: Built BM25 raw index
+2026-10-08 21:13:40,713 INFO lean_explore.extract.index: Saved BM25 spaced index to /home/firstone/lean/workboots/local-explore/pilot/explore/none_fallback/bm25_name_spaced
+2026-10-08 21:13:40,714 INFO lean_explore.extract.index: Saved BM25 raw index to /home/firstone/lean/workboots/local-explore/pilot/explore/none_fallback/bm25_name_raw
+2026-10-08 21:13:40,714 INFO lean_explore.extract.index: Saved BM25 ID mapping to /home/firstone/lean/workboots/local-explore/pilot/explore/none_fallback/bm25_ids_map.json
+2026-10-08 21:13:40,714 INFO lean_explore.extract.index: All BM25 indices built successfully
+2026-10-08 21:13:40,721 INFO build_explore: manifest written: /home/firstone/lean/workboots/local-explore/pilot/explore/none_fallback/MANIFEST.json (copy in /home/firstone/lean/workboots/local-explore/manifests)

@@ -1,0 +1,793 @@
+#!/usr/bin/env python3
+
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import argparse
+import urllib
+import subprocess
+import json
+import html
+import sys
+import time
+import re
+import os
+import queue
+import threading
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Loogle HTTP frontend. Any arguments after `--` are "
+                    "forwarded to the loogle subprocess, appended after the "
+                    "always-passed `--json --interactive` (e.g. "
+                    "`-- --module Init.Data.List.Basic --max-results 50`).",
+        allow_abbrev=False,
+    )
+    parser.add_argument("--host", default="localhost",
+                        help="HTTP listen address (default: localhost)")
+    parser.add_argument("--port", type=int, default=8088,
+                        help="HTTP listen port (default: 8088)")
+    parser.add_argument("--loogle-bin", default=".lake/build/bin/loogle",
+                        help="Path to the loogle binary (default: "
+                             ".lake/build/bin/loogle)")
+    parser.add_argument("--restart-delay", type=float, default=5.0,
+                        help="Seconds to wait for a misbehaving worker to "
+                             "die before polling its exit code (default: "
+                             "5.0). Lower values make the test suite quick.")
+    parser.add_argument("--startup-timeout", type=float, default=600.0,
+                        help="Seconds to wait for a worker subprocess to "
+                             "print its greeting before giving up on the "
+                             "startup attempt (default: 600). Caps the "
+                             "blast radius of a wedged backend on restart.")
+    parser.add_argument("--workers", type=int, default=1,
+                        help="Number of loogle worker subprocesses (default: "
+                             "1). Each worker holds its own mathlib in RAM. "
+                             "Requests that arrive when all workers are busy "
+                             "receive HTTP 503.")
+    parser.add_argument("--project-dir", default=None,
+                        help="Lake project directory to serve. When set, the "
+                             "loogle subprocess is invoked via `lake -d <dir> "
+                             "env <loogle-bin> ...` so it sees the project's "
+                             "LEAN_PATH, and the project's name + git "
+                             "revision are shown in the page footer.")
+    parser.add_argument("--manifest", default=None,
+                        help="Path to a MANIFEST.json. When set, GET /health "
+                             "answers {ok, tool, pin, manifest}.")
+    return parser.parse_known_args()
+
+
+args, loogle_extra_args = parse_args()
+if args.workers < 1:
+    sys.exit(f"--workers must be at least 1 (got {args.workers})")
+if args.restart_delay < 0:
+    sys.exit(f"--restart-delay must be non-negative (got {args.restart_delay})")
+if args.startup_timeout <= 0:
+    sys.exit(f"--startup-timeout must be positive (got {args.startup_timeout})")
+hostName = args.host
+serverPort = args.port
+loogleBin = args.loogle_bin
+restartDelay = args.restart_delay
+startupTimeout = args.startup_timeout
+projectDir = args.project_dir
+# Strip a leading "--" separator if the user used one to delimit forwarded args.
+if loogle_extra_args and loogle_extra_args[0] == "--":
+    loogle_extra_args = loogle_extra_args[1:]
+
+healthManifest = None
+if args.manifest:
+    with open(args.manifest) as f:
+        healthManifest = json.load(f)
+
+blurb = open("./blurb.html","rb").read()
+icon = open("./loogle.png","rb").read()
+banner = open("./loogle-banner.png","rb").read()
+
+rev1 = "UNKNOWN"
+try:
+    rev1 = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+except Exception:
+    pass
+
+
+def find_project_info(project_dir):
+    """Read the package name from `<project_dir>/lake-manifest.json` and
+    the revision from `git -C <project_dir> rev-parse HEAD`. Returns a
+    dict `{name, rev, github_url}` where `github_url` is the commit page
+    on GitHub if the `origin` remote points at github.com, otherwise
+    None. Returns None if either piece can't be determined."""
+    if not project_dir:
+        return None
+    try:
+        with open(os.path.join(project_dir, "lake-manifest.json")) as f:
+            manifest = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    name = (manifest.get("name") or "").strip("«»")
+    if not name:
+        return None
+    try:
+        rev = subprocess.check_output(
+            ['git', '-C', project_dir, 'rev-parse', 'HEAD'],
+            stderr=subprocess.DEVNULL,
+        ).decode('ascii').strip()
+    except (subprocess.CalledProcessError, OSError):
+        return None
+    github_url = None
+    try:
+        origin = subprocess.check_output(
+            ['git', '-C', project_dir, 'remote', 'get-url', 'origin'],
+            stderr=subprocess.DEVNULL,
+        ).decode('ascii').strip()
+        # Match git@github.com:owner/repo(.git) and https://github.com/owner/repo(.git)
+        m = re.match(
+            r'(?:git@github\.com:|https://github\.com/)([^/]+/[^/]+?)(?:\.git)?$',
+            origin)
+        if m:
+            github_url = f"https://github.com/{m.group(1)}/commit/{rev}"
+    except (subprocess.CalledProcessError, OSError):
+        pass
+    return {'name': name, 'rev': rev, 'github_url': github_url}
+
+
+project_info = find_project_info(projectDir)
+
+# Prometheus is optional. If the user doesn't have the `prometheus_client`
+# package installed, metric updates become no-ops and the /metrics endpoint
+# returns HTTP 500 with an explanatory message.
+try:
+    import prometheus_client
+except ImportError:
+    prometheus_client = None
+
+if prometheus_client is not None:
+    m_info = prometheus_client.Info('versions', 'Lean and mathlib versions')
+    if project_info is not None:
+        m_info.info({
+            'loogle': rev1,
+            'project': project_info['name'],
+            'project_rev': project_info['rev'],
+        })
+    else:
+        m_info.info({'loogle': rev1})
+    m_queries = prometheus_client.Counter('queries', 'Total number of queries')
+    m_errors_backend = prometheus_client.Counter('errors_backend', 'Queries failed because the backend crashed or timed out')
+    m_errors_loogle = prometheus_client.Counter('errors_loogle', 'Queries where loogle itself returned an error response')
+    m_errors_denylist = prometheus_client.Counter('errors_denylist', 'Requests rejected by the user-agent denylist')
+    m_load_shed = prometheus_client.Counter('load_shed', 'Requests rejected because all workers were busy')
+    m_restarts = prometheus_client.Counter('restarts', 'Backend worker restarts', ['reason'])
+    for l in ("sandbox", "died", "unresponsive"): m_restarts.labels(l)
+    m_workers_lost = prometheus_client.Counter('workers_lost', 'Workers permanently removed from the pool after a failed restart')
+    m_results = prometheus_client.Histogram('results', 'Results per query', buckets=(0,1,2,5,10,50,100,200,500,1000))
+    m_heartbeats = prometheus_client.Histogram('heartbeats', 'Heartbeats per query', buckets=(0,2e0,2e1,2e2,2e3,2e4))
+    m_client = prometheus_client.Counter('clients', 'Clients used', ["client"])
+    for l in ("web", "zulip", "json", "nvim", "vscode-lean4", "vscode-loogle", "LeanSearchClient", "lean-lsp-mcp", "meta-agent", "AutoLeanPaper"): m_client.labels(l)
+else:
+    class _NoopMetric:
+        """Stand-in for prometheus metrics when the library is not installed.
+        Every operation is a no-op; `labels(...)` returns self so chained
+        calls like `m_client.labels(...).inc()` still work."""
+        def inc(self, *a, **kw): pass
+        def observe(self, *a, **kw): pass
+        def labels(self, *a, **kw): return self
+        def info(self, *a, **kw): pass
+    m_info = m_queries = m_errors_backend = m_errors_loogle = m_errors_denylist = m_results = m_heartbeats = m_client = m_load_shed = m_restarts = m_workers_lost = _NoopMetric()
+
+examples = [
+    "Real.sin",
+    "Real.sin, tsum",
+    "Real.sin (_ + 2*Real.pi)",
+    "List.replicate (_ + _) _",
+    "Real.sqrt ?a * Real.sqrt ?a",
+]
+
+class Loogle():
+    def __init__(self):
+        self.start()
+
+    def start(self):
+        cmd = [loogleBin, "--json", "--interactive", *loogle_extra_args]
+        if projectDir:
+            cmd = ["lake", "-d", projectDir, "env", *cmd]
+        self.loogle = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        )
+        # Block until the backend signals readiness, with a generous
+        # timeout so a wedged subprocess doesn't hang the request thread
+        # that's restarting it. Workers only enter the pool after this
+        # returns True, so the dispatcher never hands out a worker that
+        # is still loading mathlib.
+        greeting = self._read_greeting(startupTimeout)
+        if greeting != b"Loogle is ready.\n":
+            if greeting is None:
+                sys.stderr.write(
+                    f"Backend did not send greeting within {startupTimeout}s.\n")
+            else:
+                sys.stderr.write(
+                    f"Backend did not send expected greeting (got: {greeting!r}).\n")
+            self.loogle.kill()
+            # Reap synchronously so is_alive() in the caller sees the
+            # dead subprocess immediately (kill() alone is asynchronous).
+            self.loogle.wait()
+            return False
+        return True
+
+    def _read_greeting(self, timeout):
+        """Read the greeting line from the backend's stdout, bounded by
+        `timeout` seconds. Returns the line on success, b'' on EOF, or
+        None on timeout. A daemon thread does the blocking readline; on
+        timeout the caller kill()s the subprocess, which makes readline
+        return EOF and the thread exit cleanly."""
+        result = []
+        def reader():
+            result.append(self.loogle.stdout.readline())
+        t = threading.Thread(target=reader, daemon=True)
+        t.start()
+        t.join(timeout)
+        if t.is_alive():
+            return None
+        return result[0]
+
+    def is_alive(self):
+        return self.loogle.poll() is None
+
+    def do_query(self, query):
+        try:
+            self.loogle.stdin.write(bytes(query, "utf8"));
+            self.loogle.stdin.write(b"\n");
+            self.loogle.stdin.flush();
+            output_json = self.loogle.stdout.readline()
+            output = json.loads(output_json)
+            return output
+        except (IOError, json.JSONDecodeError) as e:
+            time.sleep(restartDelay) # to allow the process to die
+            code = self.loogle.poll()
+            if code == -31:
+                reason, msg = "sandbox", \
+                    "Backend died trying to escape the sandbox."
+            elif code is not None:
+                reason, msg = "died", \
+                    f"The backend process died with code {code}."
+            else:
+                reason, msg = "unresponsive", \
+                    f"Backend did not respond ({e})."
+                # kill+wait so start() doesn't leave a zombie behind.
+                # The crash/sandbox branches already reaped via poll().
+                self.loogle.kill()
+                self.loogle.wait()
+            sys.stderr.write(f"{msg}\n")
+            m_restarts.labels(reason).inc()
+            m_errors_backend.inc()
+            if self.start():
+                return {"error": f"{msg} Restarting...", "_backend_error": True}
+            # Restart itself failed (greeting bad). The handler will see
+            # is_alive() == False and drop the worker instead of pooling
+            # it. Surface that distinction to the user.
+            return {"error":
+                f"{msg} Backend failed to come up cleanly on restart; "
+                "removing worker from pool.",
+                "_backend_error": True}
+
+    def query(self, query):
+        m_queries.inc()
+        print(f"Query: {json.dumps(query)}", flush=True)
+        output = self.do_query(query)
+        if "error" in output and not output.pop("_backend_error", False):
+            m_errors_loogle.inc()
+        if "count" in output:
+            m_results.observe(output["count"])
+        if "heartbeats" in output:
+            m_heartbeats.observe(output["heartbeats"])
+        return output
+
+
+
+pool = queue.Queue(maxsize=args.workers)
+
+# Declared next to the pool so the binding is obvious. set_function makes
+# this a pull-time gauge: the value is read at /metrics scrape time, so
+# we don't have to keep an inc/dec counter in sync with pool operations.
+if prometheus_client is not None:
+    prometheus_client.Gauge(
+        'workers_available',
+        'Workers currently in the pool and ready to serve a request'
+    ).set_function(pool.qsize)
+
+def _bring_up_worker(i):
+    try:
+        w = Loogle()
+    except Exception as e:
+        sys.stderr.write(f"Worker {i} failed to start: {e}\n")
+        return
+    if w.loogle.poll() is not None:
+        # Start() killed the subprocess (bad greeting). Leave the worker
+        # out of the pool entirely so requests load-shed cleanly instead
+        # of being served by a dead pipe.
+        sys.stderr.write(f"Worker {i} did not come up cleanly; not adding to pool.\n")
+        return
+    pool.put(w)
+    sys.stderr.write(f"Worker {i} ready.\n")
+
+for i in range(args.workers):
+    threading.Thread(
+        target=_bring_up_worker, args=(i,), daemon=True,
+        name=f"loogle-bringup-{i}").start()
+
+def _return_or_drop_worker(worker):
+    """Put a worker back in the pool, unless its restart left it dead —
+    in which case the pool size effectively shrinks for the lifetime of
+    the process. Counts the loss so it's visible in /metrics."""
+    if worker.is_alive():
+        pool.put(worker)
+    else:
+        m_workers_lost.inc()
+        sys.stderr.write(
+            "Worker is dead after attempted restart; removing from pool.\n")
+
+# link formatting
+def locallink(query):
+    return f"?q={urllib.parse.quote(query)}"
+
+def querylink(query):
+    return f"https://loogle.lean-lang.org/?q={urllib.parse.quote(query)}"
+
+def doclink(hit):
+    name = hit["name"]
+    modpath = hit["module"].replace(".","/")
+    return f"https://leanprover-community.github.io/mathlib4_docs/{urllib.parse.quote(modpath)}.html#{urllib.parse.quote(name)}"
+
+def zulHit(hit):
+    return f"[{hit['name']}]({doclink(hit)})"
+
+def zulQuery(sugg):
+    return f"[`{sugg}`]({querylink(sugg)})"
+
+HandlerBase = prometheus_client.MetricsHandler if prometheus_client is not None \
+    else BaseHTTPRequestHandler
+
+class MyHandler(HandlerBase):
+
+    def return404(self):
+        self.send_response(404)
+        self.send_header("Content-type", "text/plain")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "User-Agent, X-Loogle-Client")
+        self.end_headers()
+        self.wfile.write(b"Not found.\n")
+
+    def return400(self):
+        self.send_response(400)
+        self.send_header("Content-type", "text/plain")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "User-Agent, X-Loogle-Client")
+        self.end_headers()
+        try:
+            self.wfile.write(b"Invalid request.\n")
+        except BrokenPipeError:
+            # browsers seem to like to close this early
+            pass
+
+    def return503(self, content_type, body):
+        self.send_response(503)
+        self.send_header("Content-type", content_type)
+        self.send_header("Retry-After", "5")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "User-Agent, X-Loogle-Client")
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except BrokenPipeError:
+            pass
+
+    def returnRedirect(self, url):
+        self.send_response(302)
+        self.send_header("Location", url)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "User-Agent, X-Loogle-Client")
+        self.end_headers()
+
+    def returnJSON(self, data):
+        self.send_response(200)
+        self.send_header("Content-type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "User-Agent, X-Loogle-Client")
+        self.end_headers()
+        try:
+            self.wfile.write(bytes(json.dumps(data), "utf8"))
+        except BrokenPipeError:
+            pass
+
+    def returnPNG(self, data):
+        self.send_response(200)
+        self.send_header("Content-type", "image/png")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "User-Agent, X-Loogle-Client")
+        self.end_headers()
+        try:
+            self.wfile.write(data)
+        except BrokenPipeError:
+            pass
+
+    def do_OPTIONS(self):
+        url = urllib.parse.urlparse(self.path)
+        if url.path == "/json":
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET")
+            self.send_header("Access-Control-Allow-Headers", "User-Agent, X-Loogle-Client")
+            self.end_headers()
+        else:
+            self.return404()
+
+    def do_POST(self):
+        try:
+            url = urllib.parse.urlparse(self.path)
+            if url.path != "/zulipbot":
+                self.return404()
+                return
+
+            if self.headers.get_content_type() != 'application/json':
+                self.send_response(400)
+                self.end_headers()
+                return
+            m_client.labels("zulip").inc()
+
+            length = int(self.headers.get('content-length'))
+            message = json.loads(self.rfile.read(length))
+
+            m = re.search(r'@\*\*loogle\*\*[:,\?]?\s*(.*)$', message['data'], flags = re.MULTILINE)
+            if m:
+                query = m.group(1)
+            else:
+                query = message['data'].split('\n', 1)[0]
+
+            try:
+                worker = pool.get(block=False)
+            except queue.Empty:
+                m_load_shed.inc()
+                self.returnJSON({ "content":
+                    "🛑 Loogle is currently under load, please try again in a moment." })
+                return
+            try:
+                result = worker.query(query)
+            finally:
+                _return_or_drop_worker(worker)
+
+            if "error" in result:
+                if "\n" in result['error']:
+                    reply = f"❗\n```\n{result['error']}\n```"
+                else:
+                    reply = f"❗ {result['error']}"
+                if "suggestions" in result:
+                    suggs = result["suggestions"]
+                    reply += "\n"
+
+                    if len(suggs) == 1:
+                        reply += f"Did you mean {zulQuery(suggs[0])}?"
+                    elif len(suggs) == 2:
+                        reply += f"Did you mean {zulQuery(suggs[0])} or {zulQuery(suggs[1])}?"
+                    else:
+                        reply += f"Did you mean {zulQuery(suggs[0])}, {zulQuery(suggs[1])}, or [something else]({querylink(query)})?"
+
+            else:
+                hits = result["hits"]
+                if len(hits) == 0:
+                    reply = f"🤷 nothing found"
+                elif len(hits) == 1:
+                    reply = f"🔍 {zulHit(hits[0])}"
+                elif len(hits) == 2:
+                    reply = f"🔍 {zulHit(hits[0])}, {zulHit(hits[1])}"
+                else:
+                    n = result["count"] - 2
+                    reply = f"🔍 {zulHit(hits[0])}, {zulHit(hits[1])}, and [{n} more]({querylink(query)})"
+            self.returnJSON({ "content": reply })
+        except BrokenPipeError:
+            # browsers seem to like to close this early
+            pass
+
+    def do_GET(self):
+        try:
+            query = ""
+            result = {}
+            overloaded = False
+            url = urllib.parse.urlparse(self.path)
+            want_json = False
+            user_agent = self.headers.get("user-agent", "") or ""
+
+            if url.path == "/health" and healthManifest is not None:
+                self.returnJSON({"ok": True, "tool": "loogle",
+                                 "pin": healthManifest.get("pin"),
+                                 "manifest": healthManifest})
+                return
+            if url.path == "/loogle.png":
+               self.returnPNG(icon)
+               return
+            if url.path == "/loogle-banner.png":
+               self.returnPNG(banner)
+               return
+            if user_agent == "Python-urllib/3.12":
+                m_errors_denylist.inc()
+                self.send_response(403)
+                self.send_header("Content-type", "text/plain")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Headers", "User-Agent, X-Loogle-Client")
+                self.end_headers()
+                try:
+                    self.wfile.write(
+                        b"Your requests are causing issues on this loogle "
+                        b"instance. Please contact Joachim Breitner on "
+                        b"https://leanprover.zulipchat.com/\n")
+                except BrokenPipeError:
+                    pass
+                return
+            if url.path == "/json":
+                want_json = True
+            elif url.path == "/metrics":
+                if prometheus_client is None:
+                    self.send_response(500)
+                    self.send_header("Content-type", "text/plain")
+                    self.end_headers()
+                    try:
+                        self.wfile.write(
+                            b"The /metrics endpoint requires the "
+                            b"'prometheus_client' Python package, which is "
+                            b"not installed. Install it (e.g. `pip install "
+                            b"prometheus_client`) and restart the server.\n")
+                    except BrokenPipeError:
+                        pass
+                    return
+                return super(MyHandler, self).do_GET()
+            elif url.path != "/":
+                self.return404()
+                return
+
+            url_query = url.query
+            params = urllib.parse.parse_qs(url_query)
+            if "q" in params and len(params["q"]) == 1:
+                if "meta-externalagent" in user_agent:
+                        m_client.labels("meta-agent").inc()
+                elif want_json:
+                    if "lean4/" in self.headers.get("x-loogle-client", ""):
+                        m_client.labels("vscode-lean4").inc()
+                    elif "LeanSearchClient" in user_agent:
+                        m_client.labels("LeanSearchClient").inc()
+                    elif "vscode" in user_agent:
+                        m_client.labels("vscode-loogle").inc()
+                    elif "lean.nvim" in user_agent:
+                        m_client.labels("nvim").inc()
+                    elif "lean+nvim" in user_agent:
+                        m_client.labels("nvim").inc()
+                    elif "lean-lsp-mcp" in user_agent:
+                        m_client.labels("lean-lsp-mcp").inc()
+                    elif "AutoLeanPaper" in user_agent:
+                        m_client.labels("AutoLeanPaper").inc()
+                    else:
+                        m_client.labels("json").inc()
+                else:
+                    m_client.labels("web").inc()
+
+                query = params["q"][0].strip().removeprefix("#find ").strip()
+                if query:
+                    query = re.sub(r'\s', ' ', query, flags=re.UNICODE)
+                    try:
+                        worker = pool.get(block=False)
+                    except queue.Empty:
+                        m_load_shed.inc()
+                        overloaded = True
+                    else:
+                        try:
+                            result = worker.query(query)
+                        finally:
+                            _return_or_drop_worker(worker)
+
+                if "lucky" in params and not overloaded:
+                    if "hits" in result and len(result["hits"]) >= 1:
+                        self.returnRedirect(doclink(result["hits"][0]))
+                        return
+
+
+            if want_json:
+                if overloaded:
+                    self.return503("application/json", bytes(json.dumps(
+                        {"error": "Loogle is currently under load, please try again later."}),
+                        "utf8"))
+                    return
+                self.returnJSON(result)
+                return
+
+            self.send_response(503 if overloaded else 200)
+            self.send_header("Content-type", "text/html")
+            if overloaded:
+                self.send_header("Retry-After", "5")
+            self.end_headers()
+            self.wfile.write(bytes("""
+                <!doctype html>
+                <html lang="en">
+                <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <link rel="stylesheet"
+                      href="https://unpkg.com/chota@0.9.2/dist/chota.min.css"
+                      integrity="sha384-A2UBIkgVTcNWgv+snhw7PKvU/L9N0JqHwgwDwyNcbsLiVhGG5KAuR64N4wuDYd99"
+                      crossorigin="anonymous">
+                <link rel="modulepreload"
+                      href="https://esm.sh/@leanprover/unicode-input@0.1.9/es2022/unicode-input.mjs"
+                      integrity="sha384-6mYLLqtU9qw2CfSz+CFvJA7+8ze+gepM8E6hmkMzNWforMg65FHPr+czOxPwvvPn"
+                      crossorigin="anonymous">
+                <link rel="modulepreload"
+                      href="https://esm.sh/@leanprover/unicode-input-component@0.2.0/es2022/unicode-input-component.mjs"
+                      integrity="sha384-8zfB8mBMFzGtqlqp+ueFklzOHnO/tHTwS8OcP9B5Wgcxn/LHrht5S2PboihtKYKF"
+                      crossorigin="anonymous">
+                <style>
+                  @import url('https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.061/juliamono.css');
+                  :root {
+                    --font-family-mono: 'JuliaMono', monospace;
+                  }
+
+                  /* Browser fix for unicode editing */
+                  .textinput { white-space: -moz-pre-space; }
+
+                  /* Copied from chota for textinput */
+                  .textinput {
+                      font-family: inherit;
+                      padding: 0.8rem 1rem;
+                      border-radius: 4px;
+                      border: 1px solid var(--color-lightGrey);
+                      font-size: 1em;
+                      -webkit-transition: all 0.2s ease;
+                      transition: all 0.2s ease;
+                      display: block;
+                      width: 100%;
+                    }
+                   .textinput:focus {
+                      outline: none;
+                      border-color: var(--color-primary);
+                      box-shadow: 0 0 1px var(--color-primary);
+                    }
+
+                    /* Copy buttons */
+                    span.copy { cursor: pointer; }
+                </style>
+                <link rel="icon" type="image/png" href="loogle.png" />
+                <meta name="twitter:card" content="summary_large_image">
+                <meta name="twitter:title" content="Loogle - Search Lean and Mathlib">
+                <meta name="twitter:description" content="Loogle is a search tool for finding definitions, theorems, and lemmas in Lean 4 and Mathlib.">
+                <meta name="twitter:image" content="https://loogle.lean-lang.org/loogle-banner.png">
+                
+                <meta property="og:title" content="Loogle - Search Lean and Mathlib">
+                <meta property="og:description" content="Loogle is a search tool for finding definitions, theorems, and lemmas in Lean 4 and Mathlib.">
+                <meta property="og:image" content="https://loogle.lean-lang.org/loogle-banner.png">
+                <meta property="og:url" content="https://loogle.lean-lang.org/">
+
+                <title>Loogle!</title>
+            """, "utf-8"))
+            self.wfile.write(bytes(os.environ.get('LOOGLE_HEAD',""),"utf-8"))
+            self.wfile.write(bytes(f"""
+                </head>
+                <body autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                <main class="container">
+
+                <section>
+                <h1><a href="." style="color:#333;">Loogle!</a></h1>
+            """, "utf-8"))
+            self.wfile.write(bytes(f"""
+                <form method="GET" id="queryform">
+                <div class="grouped">
+                <input id="hiddenquery" type="hidden" name="q" value=""/>
+                <div class="textinput" id="query" name="q" contenteditable="true" autofocus="true" autocorrect="false">{html.escape(query)}</div>
+                <button type="submit" id="submit">#find</button>
+                <button type="submit" name="lucky" value="yes" title="Directly jump to the documentation of the first hit.">#lucky</button>
+                </div>
+                </form>
+                </section>
+            """, "utf-8"))
+            if overloaded:
+                self.wfile.write(b"""
+                    <h2>Loogle is currently under load</h2>
+                    <p>All worker processes are busy. Please try again in a few seconds.</p>
+                """)
+            if "error" in result:
+                self.wfile.write(bytes(f"""
+                    <h2>Error</h2>
+                    <pre>{html.escape(result['error'])}</pre>
+                """, "utf-8"))
+            if "header" in result:
+                self.wfile.write(b"""
+                    <h2>Result</h2>
+                """)
+                self.wfile.write(bytes(f"""
+                    <p>{html.escape(result['header'])}</p>
+                """, "utf-8"))
+            if "hits" in result:
+                self.wfile.write(bytes(f"""
+                    <ul>
+                """, "utf-8"))
+                for hit in result["hits"]:
+                    name = hit["name"]
+                    mod = hit["module"]
+                    type = hit["type"]
+                    self.wfile.write(bytes(f"""
+                        <li><a href="{doclink(hit)}">{html.escape(name)}</a> <small><span class="copy" title="Copy to clipboard" data-text="{html.escape(name)}">📋</span> {html.escape(mod)}</small><br><tt>{html.escape(type)}</tt></li>
+                    """, "utf-8"))
+                self.wfile.write(b"""
+                    </ul>
+                """)
+            if "suggestions" in result:
+                self.wfile.write(b'<h2>Did you maybe mean</h2><ul>')
+                for sugg in result["suggestions"]:
+                    link = locallink(sugg)
+                    self.wfile.write(bytes(f'<li>🔍 <a href={link}><code>{html.escape(sugg)}</code></a></li>', "utf-8"))
+                self.wfile.write(b'</ul>')
+
+            self.wfile.write(blurb)
+
+            footer = (
+                f'<p><small>This is Loogle revision '
+                f'<a href="https://github.com/nomeata/loogle/commit/{rev1}">'
+                f'<code>{rev1[:7]}</code></a>'
+            )
+            if project_info is not None:
+                name = html.escape(project_info['name'])
+                rev = project_info['rev']
+                short = rev[:7]
+                if project_info['github_url']:
+                    footer += (
+                        f' serving {name} revision '
+                        f'<a href="{project_info["github_url"]}">'
+                        f'<code>{short}</code></a>'
+                    )
+                else:
+                    footer += f' serving {name} revision <code>{short}</code>'
+            footer += '</small></p>'
+            self.wfile.write(bytes(footer, "utf-8"))
+
+            self.wfile.write(b"""
+                </main>
+                <script type="module">
+                import { InputAbbreviationRewriter } from "https://esm.sh/@leanprover/unicode-input-component@0.2.0";
+                const queryInput = document.getElementById('query');
+                const hiddenInput = document.getElementById('hiddenquery');
+                const form = document.getElementById('queryform');
+                const submitButton = document.getElementById('submit');
+                const rewriter = new InputAbbreviationRewriter(
+                    { abbreviationCharacter: "\\\\",
+                      customTranslations: [],
+                      eagerReplacementEnabled: true },
+                    queryInput,
+                )
+                queryInput.addEventListener('keydown', event => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        submitButton.click();
+                    }
+                })
+                form.addEventListener('submit', event => {
+                    hiddenInput.value = queryInput.innerText;
+                })
+
+                // Implement the copy buttons
+                document.querySelectorAll('span.copy').forEach(element => {
+                    element.addEventListener('click', () => {
+                        navigator.clipboard.writeText(element.getAttribute('data-text'));
+                    });
+                });
+                </script>
+                </body>
+                </html>
+            """)
+        except BrokenPipeError:
+            # browsers seem to like to close this early
+            pass
+
+if __name__ == "__main__":
+    webServer = ThreadingHTTPServer((hostName, serverPort), MyHandler)
+    print("Server started http://%s:%s" % (hostName, serverPort), flush=True)
+
+    try:
+        webServer.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+    webServer.server_close()
+    print("Server stopped.")

@@ -1,0 +1,70 @@
+{
+ "tool": "finder",
+ "pin": "val-200",
+ "built_at": "2026-10-09T00:27:47Z",
+ "device": "cpu",
+ "dtype": "float32",
+ "rows": 200,
+ "embedding_dim": 4096,
+ "kinds": {
+  "definition": 46,
+  "theorem": 153,
+  "inductive": 1
+ },
+ "model": {
+  "repo": "delta-lab-ai/lean-finder",
+  "revision": "a9e312299c4d68f020662a68d70c4e3979781f91",
+  "dir": "/home/firstone/.local/share/tauceti-finder/models/lean-finder-a9e312299c4d"
+ },
+ "lean_finder_commit": "69b764614453057013e411a8c8081f447cda64e7",
+ "files": {
+  "corpus.jsonl": {
+   "sha256": "0fd9e6d54035992fecb3ed333e933abcc05fc8d95cc478dd6c23b32fc83eeea5",
+   "bytes": 176245
+  },
+  "corpus.index": {
+   "sha256": "182448a5e71b30a59fca3f49437f565e23ddbac306eb0037bcfb24ddf834bb97",
+   "bytes": 3276845,
+   "type": "faiss.IndexFlatIP",
+   "metric": "inner product on L2-normalised vectors"
+  }
+ },
+ "source": {
+  "decls": "/tmp/claude-1000/-home-firstone-lean-TauCetiWorker/3a24ab72-73a4-4b0f-ac15-f7984158858a/scratchpad/idx/val-200/decls.jsonl",
+  "decls_sha256": "d946c9ff9139d57d0612e6fe0799986ee7a1144e9625b411dd909e15b7a6dc36",
+  "extraction_manifest": null
+ },
+ "slice": {
+  "limit": 200,
+  "stride": 1
+ },
+ "embedding": {
+  "entry_format": "vendor/lean_finder/build_index.py:format_entry (docstring None -> 'None')",
+  "pooling": "last_token_pool, left padding, L2-normalised fp32",
+  "max_length": 8192,
+  "batch_size": 32,
+  "max_batch_tokens": 32768,
+  "length_sorted_batches": true,
+  "cache_dir": "/tmp/claude-1000/-home-firstone-lean-TauCetiWorker/3a24ab72-73a4-4b0f-ac15-f7984158858a/scratchpad/fdata/cache/a9e312299c4d/cpu-float32",
+  "cache_hits": 0,
+  "cache_misses": 200
+ },
+ "timing": {
+  "started_at": "2026-10-09T00:15:11Z",
+  "model_load_seconds": 5.5,
+  "embed_seconds": 751.0,
+  "embedded_rows": 200,
+  "embedded_tokens": 23670,
+  "tokens_per_sec": 31.5,
+  "rows_per_sec": 0.27,
+  "finished_at": "2026-10-09T00:27:47Z",
+  "total_seconds": 756.6
+ },
+ "versions": {
+  "python": "3.12.9",
+  "torch": "2.9.0+cu128",
+  "transformers": "4.57.5",
+  "faiss": "1.13.2",
+  "numpy": "2.5.3"
+ }
+}

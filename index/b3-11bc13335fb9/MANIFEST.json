@@ -1,0 +1,116 @@
+{
+  "batch": "b3",
+  "pin": "b3-11bc13335fb9",
+  "tauceti_sha": "11bc13335fb906290a0bcbe57747f20cd21dbf2c",
+  "mathlib_rev": "5e0c4e5239cb0a2d86d68a884bf52cfd963fce22",
+  "lean_toolchain": "leanprover/lean4:v4.35.0-rc3",
+  "docgen4_rev": "4cac5a75c52048204e6d015554fbc10ce3f269a2",
+  "docgen4_url": "https://github.com/kim-em/doc-gen4",
+  "route": "doc-gen4 docInfo facet (api-docs.db)",
+  "api_docs_db_sha256": "f224b1a5aa51fb576e49dd93b7b1020b6db5d1d883f0b5ca4a7801bb3579f4a6",
+  "extractor": "doc-gen4 docInfo facet -> api-docs.db -> extract.py",
+  "extractor_script": "extract.py",
+  "extractor_sha256": "d23f20459e766d42fb27ee774b2f145e0dd5d320e32480e7ad06d7b636694384",
+  "built_at": "2026-10-09T01:01:42Z",
+  "decls_file": "decls.jsonl",
+  "decls_sha256": "ea0ccb8374a42f9e5282d24d6f396cb507b21883f389aea6a5e8bf4d8df9ed2d",
+  "decls_size_bytes": 429998245,
+  "counts": {
+    "tauceti": 87221,
+    "mathlib": 324054,
+    "other": 99724,
+    "total": 510999,
+    "by_package": {
+      "Aesop": 2493,
+      "Batteries": 3627,
+      "ImportGraph": 28,
+      "Init": 34523,
+      "Lake": 3667,
+      "Lean": 25684,
+      "LeanSearchClient": 93,
+      "Mathlib": 324054,
+      "Plausible": 248,
+      "ProofWidgets": 251,
+      "Qq": 208,
+      "Std": 28902,
+      "TauCeti": 87221
+    },
+    "name_info_rows": 512030,
+    "undecodable_blobs": 0
+  },
+  "modules": {
+    "total": 19236,
+    "by_package": {
+      "Aesop": 132,
+      "Batteries": 193,
+      "ImportGraph": 10,
+      "Init": 653,
+      "Lake": 135,
+      "Lean": 1227,
+      "LeanSearchClient": 4,
+      "Mathlib": 8564,
+      "Plausible": 13,
+      "ProofWidgets": 13,
+      "Qq": 14,
+      "Std": 494,
+      "TauCeti": 7783,
+      "TauCetiDocs": 1
+    }
+  },
+  "includes": {
+    "tauceti": true,
+    "mathlib": true,
+    "lean_core": true,
+    "lake": true,
+    "batteries": true
+  },
+  "fields": [
+    "name",
+    "kind",
+    "module",
+    "file",
+    "line",
+    "signature",
+    "docstring",
+    "is_mathlib",
+    "hash",
+    "type_full"
+  ],
+  "hash": "sha256(name + '\\n' + signature + '\\n' + docstring), utf-8, hex",
+  "kinds": [
+    "axiom",
+    "class",
+    "class inductive",
+    "ctor",
+    "def",
+    "inductive",
+    "instance",
+    "opaque",
+    "structure",
+    "theorem"
+  ],
+  "type_full": {
+    "with": 510948,
+    "without": 51,
+    "by_group_with_without": {
+      "other": [
+        99724,
+        0
+      ],
+      "Mathlib": [
+        324003,
+        51
+      ],
+      "TauCeti": [
+        87221,
+        0
+      ]
+    },
+    "dump_rows": 588900,
+    "width": 120,
+    "method": "ppExpr of constant type via dump_typefull.lean (copied from local-finder/scripts)",
+    "merge_sha256": "97b5bd750f03049d2f85e1cc3b869fc5373a5f6ba8a9121db354896b193552bb",
+    "dump_sha256": "f89ce8b188b7f88650828749cb6a2d93ba1245d46f001a336f9707ecbd7e92d3",
+    "dump_seconds": null
+  }
+}

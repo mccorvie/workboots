@@ -1,0 +1,36 @@
+[Unit]
+Description=Tau Ceti explore (LeanExplore) search service
+Documentation=file://%h/lean/workboots/local-explore/README.md
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/lean/workboots/local-explore
+# %t = $XDG_RUNTIME_DIR for a --user unit; RuntimeDirectory creates %t/tauceti-explore (0755).
+RuntimeDirectory=tauceti-explore
+RuntimeDirectoryMode=0755
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HF_HUB_OFFLINE=1
+Environment=TRANSFORMERS_OFFLINE=1
+Environment=TOKENIZERS_PARALLELISM=false
+ExecStart=%h/lean/workboots/local-explore/.venv/bin/python %h/lean/workboots/local-explore/server.py \
+    --explore-root %h/.local/share/tauceti-explore \
+    __PINS__ \
+    --socket-dir %t/tauceti-explore \
+    --socket-mode 0666 \
+    --port __PORT__ \
+    --device cuda \
+    --threads 8 \
+    --rerank-top 25 \
+    --timeout 300
+
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=10min
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=default.target

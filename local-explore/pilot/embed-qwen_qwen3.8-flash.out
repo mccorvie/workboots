@@ -1,0 +1,7 @@
+2026-10-08 21:02:04,916 INFO build_explore: == stage embed (pin b3-11bc13335fb9, out /home/firstone/lean/workboots/local-explore/pilot/explore/qwen_qwen3.8-flash)
+2026-10-08 21:02:04,918 INFO build_explore: embed: 200 rows need embeddings (69 with descriptions, 131 without)
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 1433.62it/s]
+2026-10-08 21:02:09,111 INFO lean_explore.util.embedding_client: Loading embedding model /home/firstone/.cache/huggingface/hub/models--Qwen--Qwen3-Embedding-0.6B/snapshots/97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3 on cpu
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 11534.88it/s]
+2026-10-08 21:02:09,710 INFO lean_explore.util.embedding_client: Set max sequence length to 512
+2026-10-08 21:03:06,271 INFO build_explore: embedded 69/69 (1.2/s)

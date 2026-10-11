@@ -1,0 +1,20 @@
+Vendored from https://github.com/delta-lab-ai/lean-finder
+Commit: 69b764614453057013e411a8c8081f447cda64e7  (2026-05-21 14:59:33 -0700, "update link")
+License: Apache-2.0 (per upstream README; the repository ships no LICENSE file at this commit)
+Copied verbatim (sha256 of the upstream file):
+  build_index.py      7ec21b4fe67584b862309aa07667ad25c786054f5b491c1e74b20770887f1a22
+  server.py           ce66f2dc164a358930cebc2608398acd22375547b3aa8d97d4f3d6948f80bf52
+  download_corpus.py  ae46dad36b885bffad5b5989ff79d3c49b54090d78846cf46bb752f57f361f6a
+  client_example.py   7520ec9150d9e2f9f162c81aa372034e0eca799c60849797114750b3a8321912
+  requirements.txt    ce782f395df507ab396b3ff7f36c5fb49597cc1fae6d4971b90c24907e3a495a
+  README.md           03e6d0288f2a2f5c1d5e32d5dec18490faa5de63767ac4939e717b86daacc88d  (saved as README.upstream.md)
+Not copied: lean-finder-original/ (tevatron code for the paper's `old-model`; not used by the current model).
+
+What we import from these files (see ../../finder_common.py):
+  build_index.format_entry        corpus entry -> embedded text (exact training-time passage format)
+  build_index.last_token_pool     left-padding-aware last-token pooling
+  server.get_detailed_instruct    query instruction prefix
+  server.last_token_pool          identical to build_index.last_token_pool (asserted at import)
+The model load / tokenize / forward / pool / normalize sequence is reproduced in finder_common.Embedder
+with the device parametrised (upstream hard-codes "cuda" in server.py); see the comments there for the
+line-by-line correspondence.  Nothing in the vendored files is modified.

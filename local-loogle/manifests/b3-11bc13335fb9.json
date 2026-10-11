@@ -1,0 +1,21 @@
+{
+  "tool": "loogle",
+  "pin": "b3-11bc13335fb9",
+  "tauceti_sha": "11bc13335fb906290a0bcbe57747f20cd21dbf2c",
+  "mathlib_rev": "5e0c4e5239cb0a2d86d68a884bf52cfd963fce22",
+  "lean_toolchain": "leanprover/lean4:v4.35.0-rc3",
+  "loogle_commit": "9f11169aaebf1ed1e7dcc4077f2aafe0fcf66fd0",
+  "index_file": {
+    "path": "/home/firstone/.local/state/tauceti-loogle/b3-11bc13335fb9/TauCeti.LoogleAll.loogle-index",
+    "sha256": "1d26e94e65578ed3ce1612b4c777e4c049ae279b3541c3c6c5b167da1fad8e48",
+    "bytes": 515284880
+  },
+  "built_at": "2026-10-10T19:57:52Z",
+  "timings": {
+    "checkout_copy_s": 71.2,
+    "loogle_build_s": 10.9,
+    "tauceti_build_s": 27.8,
+    "index_write_s": 285.9
+  },
+  "modules_imported": 7783
+}

@@ -1,0 +1,10 @@
+torch==2.9.0
+transformers==4.57.5
+peft==0.18.1
+faiss-cpu==1.13.2
+numpy
+huggingface_hub
+tqdm
+fastapi
+uvicorn
+pydantic
